@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D 주기율표 · 실험 시뮬레이터</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚗️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#e8edf0;--ink:#16222c;--sub:#55646f;--panel:#f6f8f9;--line:#c5d0d7;--acc:#1d4f6e;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a20;--ink:#e6edf1;--sub:#93a3ae;--panel:#1a252d;--line:#2d3b45;--acc:#7fc1e6;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121a20;--ink:#e6edf1;--sub:#93a3ae;--panel:#1a252d;--line:#2d3b45;--acc:#7fc1e6;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Gothic A1","Noto Sans KR",system-ui,sans-serif;display:flex;flex-direction:column;min-height:100vh}
+header{padding:14px 18px 6px}
+h1{font-size:1.25rem;font-weight:900;margin:0}
+header p{margin:2px 0 0;color:var(--sub);font-size:.85rem}
+main{display:flex;flex:1;gap:12px;padding:0 12px 12px;flex-wrap:wrap}
+#stage{flex:2 1 460px;min-height:360px;height:62vh;border-radius:10px;background:var(--panel);border:1px solid var(--line);position:relative;touch-action:none;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+#hint{position:absolute;left:10px;bottom:8px;font-size:.75rem;color:var(--sub)}
+#info{flex:1 1 300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:62vh;overflow:auto}
+#sym{font-size:3.4rem;font-weight:900;line-height:1;color:var(--acc)}
+#info h2{margin:6px 0 0;font-size:1.1rem}
+.meta{color:var(--sub);font-size:.85rem;margin:2px 0 10px}
+h3{font-size:.9rem;margin:14px 0 4px}
+ul{margin:0;padding-left:18px;font-size:.88rem;line-height:1.55}
+.rx{font-size:.88rem;background:var(--bg);border-left:3px solid var(--acc);padding:8px 10px;border-radius:4px;line-height:1.6}
+button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:8px 14px;background:var(--acc);color:var(--bg);cursor:pointer;margin-top:12px}
+button:disabled{opacity:.35;cursor:default}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.warn{color:var(--sub);font-size:.78rem}
+</style></head><body>
+<header><h1>3D 주기율표 · 실험 시뮬레이터</h1><p>실험에 쓰인 원소 17종. 블록을 눌러 관련 실험과 반응식을 확인하세요.</p></header>
+<main>
+<div id="stage"><span id="hint">드래그: 회전 · 휠/핀치: 확대 · 블록 클릭: 선택</span></div>
+<aside id="info" aria-live="polite"></aside>
+</main>
+<script src="three.min.js"></script>
+<script>
+// [번호,기호,한글,영문,원자량,전자배치,주기,족,분류,불꽃색,실험[],반응식]
+const E=[
+[1,'H','수소','Hydrogen',1.008,'1s¹',1,1,'n',null,['물의 전기분해(음극에서 H₂ 발생)'],'4H⁺ + 4e⁻ → 2H₂'],
+[3,'Li','리튬','Lithium',6.94,'[He] 2s¹',2,1,'a',['#c8102e','진홍색'],['불꽃 반응 (시료 확인 필요)'],'금속 원자의 전자가 들뜬 뒤 돌아오며 빛 방출'],
+[6,'C','탄소','Carbon',12.011,'[He] 2s² 2p²',2,14,'n',null,['마그네슘-공기 전지(탄소판)','비타민 C','화산 실험(사과산)'],'C₆H₈O₆ + I₂ → C₆H₆O₆ + 2H⁺ + 2I⁻'],
+[7,'N','질소','Nitrogen',14.007,'[He] 2s² 2p³',2,15,'n',null,['페리시안화칼륨 + 홍차'],'K₃[Fe(CN)₆] — 색 변화의 반응식은 미확정'],
+[8,'O','산소','Oxygen',15.999,'[He] 2s² 2p⁴',2,16,'n',null,['물의 전기분해(양극)','마그네슘-공기 전지','황산구리 전기분해'],'2H₂O → O₂ + 4H⁺ + 4e⁻'],
+[11,'Na','나트륨','Sodium',22.990,'[Ne] 3s¹',3,1,'a',['#ffd400','노란색'],['화산 실험(베이킹소다)','NaCl 전해질','불꽃 반응'],'C₄H₆O₅ + 2NaHCO₃ → Na₂C₄H₄O₅ + 2CO₂↑ + 2H₂O'],
+[12,'Mg','마그네슘','Magnesium',24.305,'[Ne] 3s²',3,2,'e',null,['마그네슘-공기 전지 자동차'],'2Mg + O₂ + 2H₂O → 2Mg(OH)₂'],
+[16,'S','황','Sulfur',32.06,'[Ne] 3s² 3p⁴',3,16,'n',null,['황산구리 전기분해'],'2CuSO₄ + 2H₂O → 2Cu + O₂ + 2H₂SO₄'],
+[17,'Cl','염소','Chlorine',35.45,'[Ne] 3s² 3p⁵',3,17,'h',null,['탄산칼슘 침전(CaCl₂)','NaCl 전해질'],'K₂CO₃ + CaCl₂ → CaCO₃↓ + 2KCl'],
+[19,'K','칼륨','Potassium',39.098,'[Ar] 4s¹',4,1,'a',['#b06cff','보라색'],['탄산칼슘 침전(K₂CO₃)','불꽃 반응','페리시안화칼륨'],'Ca²⁺ + CO₃²⁻ → CaCO₃↓'],
+[20,'Ca','칼슘','Calcium',40.078,'[Ar] 4s²',4,2,'e',['#ff6a1a','주황빛 빨강'],['탄산칼슘 침전','불꽃 반응'],'Ca²⁺ + CO₃²⁻ → CaCO₃↓ (흰색 앙금)'],
+[26,'Fe','철','Iron',55.845,'[Ar] 3d⁶ 4s²',4,8,'t',null,['페리시안화칼륨 + 홍차(진회색~검정)'],'K₃[Fe(CN)₆] — 색 변화의 반응식은 미확정'],
+[29,'Cu','구리','Copper',63.546,'[Ar] 3d¹⁰ 4s¹',4,11,'t',['#12c8a8','청록색'],['황산구리 전기분해','불꽃 반응'],'Cu²⁺ + 2e⁻ → Cu (음극)'],
+[35,'Br','브로민','Bromine',79.904,'[Ar] 3d¹⁰ 4s² 4p⁵',4,17,'h',null,['BTB 지시약(C₂₇H₂₈Br₂O₅S)'],'BTB 분자식에서 확인한 원소'],
+[38,'Sr','스트론튬','Strontium',87.62,'[Kr] 5s²',5,2,'e',['#e0103a','진홍색'],['불꽃 반응 (시료 확인 필요)'],'금속 원자의 전자가 들뜬 뒤 돌아오며 빛 방출'],
+[53,'I','아이오딘','Iodine',126.904,'[Kr] 4d¹⁰ 5s² 5p⁵',5,17,'h',null,['비타민 C와 아이오딘 반응','아이오딘화칼륨'],'C₆H₈O₆ + I₂ → C₆H₆O₆ + 2H⁺ + 2I⁻'],
+[56,'Ba','바륨','Barium',137.327,'[Xe] 6s²',6,2,'e',['#9bd600','황록색'],['불꽃 반응 (시료 확인 필요)'],'금속 원자의 전자가 들뜬 뒤 돌아오며 빛 방출']];
+const COMP=[['물','H₂O'],['사과산','C₄H₆O₅'],['비타민 C','C₆H₈O₆'],['베이킹소다','NaHCO₃'],['염화나트륨','NaCl'],['황산구리(Ⅱ)','CuSO₄'],['탄산칼륨','K₂CO₃'],['염화칼슘','CaCl₂'],['탄산칼슘','CaCO₃'],['아이오딘화칼륨','KI'],['페리시안화칼륨','K₃[Fe(CN)₆]'],['수산화마그네슘','Mg(OH)₂'],['수산화나트륨','NaOH'],['수산화칼슘','Ca(OH)₂'],['황산나트륨','Na₂SO₄'],['황산칼륨','K₂SO₄'],['메틸렌 블루','C₁₆H₁₈ClN₃S'],['BTB','C₂₇H₂₈Br₂O₅S']];
+const COL={n:'#9fcdb9',a:'#e89a8c',e:'#ebc765',t:'#8fa9e0',h:'#e0b07a'};
+const stage=document.getElementById('stage');
+const R=new THREE.WebGLRenderer({antialias:true,alpha:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));stage.appendChild(R.domElement);
+const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(40,1,.1,200);
+S.add(new THREE.AmbientLight(0xffffff,.75));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(5,8,12);S.add(dl);
+const G=new THREE.Group();S.add(G);
+function face(e){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');
+x.fillStyle=COL[e[8]];x.fillRect(0,0,256,256);x.fillStyle='#16222c';x.textAlign='center';
+x.font='700 36px sans-serif';x.fillText(e[0],40,52);
+x.font='900 110px sans-serif';x.fillText(e[1],128,150);
+x.font='700 34px sans-serif';x.fillText(e[2],128,200);
+x.font='24px sans-serif';x.fillText(e[4],128,236);
+if(e[9]){x.fillStyle=e[9][0];x.beginPath();x.arc(224,32,14,0,7);x.fill();}
+return new THREE.CanvasTexture(c);}
+const blocks=[];
+E.forEach(e=>{
+ const side=new THREE.MeshStandardMaterial({color:COL[e[8]],roughness:.6});
+ const front=new THREE.MeshStandardMaterial({map:face(e),roughness:.5,emissive:0x000000});
+ const m=new THREE.Mesh(new THREE.BoxGeometry(.92,.92,.35),[side,side,side,side,front,side]);
+ m.position.set((e[7]-9.5),(3.5-e[6]),0);m.userData={e,front,z0:0};G.add(m);blocks.push(m);});
+// 불꽃
+const flame=new THREE.Mesh(new THREE.SphereGeometry(.28,16,16),new THREE.MeshBasicMaterial({transparent:true,opacity:.9}));
+flame.scale.set(1,1.8,1);flame.visible=false;G.add(flame);
+let sel=null,burn=false;
+function fit(){const w=stage.clientWidth,h=stage.clientHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();
+ const t=Math.tan(cam.fov*Math.PI/360);cam.userData.d=Math.max(9.6/(t*cam.aspect),4.2/t)*1.05;if(!cam.userData.z)cam.userData.z=cam.userData.d;}
+addEventListener('resize',fit);fit();
+let rx=-.15,ry=0,drag=null,moved=0,zoom=1;
+stage.addEventListener('pointerdown',ev=>{drag={x:ev.clientX,y:ev.clientY};moved=0;stage.setPointerCapture(ev.pointerId)});
+stage.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved+=Math.abs(dx)+Math.abs(dy);
+ ry=Math.max(-1.2,Math.min(1.2,ry+dx*.005));rx=Math.max(-.9,Math.min(.9,rx+dy*.005));drag={x:ev.clientX,y:ev.clientY}});
+stage.addEventListener('pointerup',ev=>{drag=null;if(moved<6)pick(ev)});
+stage.addEventListener('wheel',ev=>{ev.preventDefault();zoom=Math.max(.35,Math.min(1.6,zoom*(ev.deltaY>0?1.08:.92)))},{passive:false});
+const ray=new THREE.Raycaster();
+function pick(ev){const r=R.domElement.getBoundingClientRect();
+ ray.setFromCamera({x:((ev.clientX-r.left)/r.width)*2-1,y:-((ev.clientY-r.top)/r.height)*2+1},cam);
+ const h=ray.intersectObjects(blocks)[0];if(h)select(h.object);}
+const $=id=>document.getElementById(id);
+function select(m){sel=m;burn=false;blocks.forEach(b=>b.userData.front.emissive.set(0x000000));showInfo(m.userData.e);}
+function showInfo(e){
+ const cs=COMP.filter(c=>new RegExp(e[1]+'(?![a-z])').test(c[1])).map(c=>`<li>${c[0]} ${c[1]}</li>`).join('')||'<li>—</li>';
+ $('info').innerHTML=`<div id="sym">${e[1]}</div><h2>${e[2]} · ${e[3]}</h2>
+ <p class="meta">원자번호 ${e[0]} · 원자량 ${e[4]} · ${e[6]}주기 ${e[7]}족<br>전자배치 ${e[5]}</p>
+ <h3>관련 실험</h3><ul>${e[10].map(x=>`<li>${x}</li>`).join('')}</ul>
+ <h3>관련 화합물</h3><ul>${cs}</ul>
+ <h3>관련 반응식</h3><div class="rx">${e[11]}</div>
+ <button id="fb" ${e[9]?'':'disabled'}>${e[9]?'불꽃 반응 보기 ('+e[9][1]+')':'불꽃 반응 실험 없음'}</button>
+ <p class="warn">Zn(아연)은 사용 기록이 없어 제외했습니다.</p>`;
+ const fb=$('fb');if(e[9])fb.onclick=()=>{burn=!burn;
+  sel.userData.front.emissive.set(burn?e[9][0]:0x000000);sel.userData.front.emissiveIntensity=.55;};}
+showInfo=showInfo;
+$('info').innerHTML='<h2>블록을 선택하세요</h2><p class="meta">원소를 누르면 원자량, 전자배치, 관련 실험과 반응식이 표시됩니다.<br>색 점이 있는 블록은 불꽃 반응을 볼 수 있습니다.</p>';
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function loop(t){requestAnimationFrame(loop);
+ G.rotation.set(rx,ry,0);cam.position.z=cam.userData.d*zoom;cam.lookAt(0,0,0);
+ blocks.forEach(b=>{const tz=b===sel?.7:0;b.position.z+=(tz-b.position.z)*.15;});
+ flame.visible=burn&&!!sel;
+ if(flame.visible){flame.position.set(sel.position.x,sel.position.y+.9,sel.position.z+.3);
+  flame.material.color.set(sel.userData.e[9][0]);const f=reduce?1:1+Math.sin(t*.02)*.12;flame.scale.set(f,1.8*f,f);}
+ R.render(S,cam);}
+requestAnimationFrame(loop);
+</script></body></html>
