@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>반응식 애니메이션 · 원자 재배열</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#e8edf0;--ink:#16222c;--sub:#55646f;--panel:#f6f8f9;--line:#c5d0d7;--acc:#1d4f6e;--ok:#1f7a4d;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a20;--ink:#e6edf1;--sub:#93a3ae;--panel:#1a252d;--line:#2d3b45;--acc:#7fc1e6;--ok:#6fd49c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121a20;--ink:#e6edf1;--sub:#93a3ae;--panel:#1a252d;--line:#2d3b45;--acc:#7fc1e6;--ok:#6fd49c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Gothic A1","Noto Sans KR",system-ui,sans-serif;padding:14px 14px 24px;max-width:860px;margin-inline:auto}
+h1{font-size:1.25rem;font-weight:900;margin:0 0 2px}
+p.s{margin:0 0 12px;color:var(--sub);font-size:.85rem}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+button{font:inherit;font-weight:700;border:1px solid var(--line);border-radius:6px;padding:8px 14px;background:var(--panel);color:var(--ink);cursor:pointer}
+button.on,button.go{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+canvas{width:100%;display:block}
+#eq{font-size:1.5rem;font-weight:900;text-align:center;margin:12px 0 2px}
+#note{text-align:center;color:var(--sub);font-size:.85rem;margin:0 0 12px}
+.ctl{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+input[type=range]{flex:1;accent-color:var(--acc)}
+.cnt{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.chip{border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg);font-weight:700}
+.chip small{color:var(--sub);font-weight:400}
+#bal{margin:8px 0 0;font-weight:700;color:var(--sub)}
+#bal.ok{color:var(--ok)}
+</style></head><body>
+<h1>반응식 애니메이션</h1>
+<p class="s"><a href="index.html">← 3D 주기율표</a><br>반응 버튼을 누르거나 슬라이더를 움직여 보세요. 결합이 끊기고 원자가 재배열되어도 개수는 그대로입니다.</p>
+<div class="tabs" id="tabs"></div>
+<div class="box"><canvas id="cv" width="720" height="290" aria-label="원자 재배열 애니메이션"></canvas></div>
+<div id="eq"></div><p id="note"></p>
+<div class="ctl"><button class="go" id="play">▶ 반응 시작</button><input type="range" id="sl" min="0" max="1000" value="0" aria-label="반응 진행도"><button id="rs">↺</button></div>
+<div class="box"><b>원소별 원자 수 (반응 전 → 반응 후)</b><div class="cnt" id="cnt"></div><p id="bal"></p></div>
+<script>
+const COL={H:['#e8eef2',11],O:['#e0574f',16],C:['#4d5964',15],K:['#b06cff',15],Ca:['#ebc765',17],Cl:['#5fbf7a',16]};
+const RX=[
+{name:'물의 전기분해',eq:'2H₂O → 2H₂ + O₂',note:'물 2분자가 쪼개져 수소 기체 2분자와 산소 기체 1분자가 됩니다.',
+ atoms:[['O',110,130,600,150],['H',80,165,452,95],['H',140,165,452,205],['O',250,130,638,150],['H',220,165,488,95],['H',280,165,488,205]],
+ rb:[[0,1],[0,2],[3,4],[3,5]],pb:[[1,4],[2,5],[0,3,'d']],
+ rl:[[110,205,'H₂O'],[250,205,'H₂O']],pl:[[470,150,'H₂'],[470,245,'H₂'],[619,190,'O₂']]},
+{name:'탄산칼슘 침전',eq:'K₂CO₃ + CaCl₂ → CaCO₃↓ + 2KCl',note:'이온이 짝을 바꿔 물에 녹지 않는 CaCO₃가 흰색 앙금으로 생깁니다.',
+ atoms:[['C',110,140,470,105],['O',110,102,470,67],['O',78,160,438,125],['O',142,160,502,125],['K',45,200,590,95],['K',175,200,590,205],
+        ['Ca',285,135,470,165],['Cl',250,185,630,95],['Cl',320,185,630,205]],
+ rb:[[0,1],[0,2],[0,3],[4,2,'i'],[5,3,'i'],[6,7,'i'],[6,8,'i']],pb:[[0,1],[0,2],[0,3],[6,2,'i'],[6,3,'i'],[4,7,'i'],[5,8,'i']],
+ rl:[[110,250,'K₂CO₃'],[285,250,'CaCl₂']],pl:[[470,225,'CaCO₃ ↓ 흰색 앙금'],[610,125,'KCl'],[610,235,'KCl']]}];
+const cv=document.getElementById('cv'),x=cv.getContext('2d'),sl=document.getElementById('sl');
+let cur=0,p=0,play=false,last=0;
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),ease=t=>t*t*(3-2*t);
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function pos(a,p){const k=ease(cl((p-.25)/.5));return[a[1]+(a[3]-a[1])*k,a[2]+(a[4]-a[2])*k]}
+function bonds(R,list,al,P){if(al<=0)return;x.globalAlpha=al;x.strokeStyle=css('--sub');
+ list.forEach(([i,j,t])=>{const A=P[i],B=P[j];x.setLineDash(t==='i'?[5,5]:[]);x.lineWidth=t==='d'?7:4;
+  x.beginPath();x.moveTo(...A);x.lineTo(...B);x.stroke();
+  if(t==='d'){x.strokeStyle=css('--panel');x.lineWidth=2.5;x.setLineDash([]);x.beginPath();x.moveTo(...A);x.lineTo(...B);x.stroke();x.strokeStyle=css('--sub')}});
+ x.setLineDash([]);x.globalAlpha=1}
+function labels(L,al){x.globalAlpha=al;x.fillStyle=css('--ink');x.font='700 15px "Gothic A1",sans-serif';x.textAlign='center';L.forEach(l=>x.fillText(l[2],l[0],l[1]));x.globalAlpha=1}
+function draw(){const r=RX[cur],P=r.atoms.map(a=>pos(a,p));
+ x.clearRect(0,0,720,290);
+ x.strokeStyle=css('--line');x.lineWidth=2;x.beginPath();x.moveTo(336,150);x.lineTo(384,150);x.lineTo(374,142);x.moveTo(384,150);x.lineTo(374,158);x.stroke();
+ const ra=1-cl((p-.1)/.2),pa=cl((p-.7)/.2);
+ bonds(r,r.rb,ra,P);bonds(r,r.pb,pa,P);labels(r.rl,ra);labels(r.pl,pa);
+ r.atoms.forEach((a,i)=>{const[c,rad]=COL[a[0]];x.fillStyle=c;x.beginPath();x.arc(P[i][0],P[i][1],rad,0,7);x.fill();
+  x.strokeStyle=css('--sub');x.lineWidth=1.2;x.stroke();x.fillStyle=a[0]==='H'?'#16222c':'#fff';
+  x.font='700 '+(rad>12?13:11)+'px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(a[0],P[i][0],P[i][1]+1);x.textBaseline='alphabetic'});
+ sl.value=Math.round(p*1000);
+ document.getElementById('bal').className=p>=1?'ok':'';
+ document.getElementById('bal').textContent=p>=1?'✓ 반응 전후 모든 원소의 원자 수가 같습니다 (질량 보존)':'슬라이더를 끝까지 움직이면 반응이 완료됩니다';}
+function setRx(i){cur=i;p=0;play=false;const r=RX[i];
+ document.querySelectorAll('#tabs button').forEach((b,j)=>b.classList.toggle('on',j===i));
+ document.getElementById('eq').textContent=r.eq;document.getElementById('note').textContent=r.note;
+ const n={};r.atoms.forEach(a=>n[a[0]]=(n[a[0]]||0)+1);
+ document.getElementById('cnt').innerHTML=Object.entries(n).map(([e,c])=>`<span class="chip">${e} <small>${c} → ${c}</small></span>`).join('');
+ document.getElementById('play').textContent='▶ 반응 시작';}
+document.getElementById('tabs').innerHTML=RX.map((r,i)=>`<button data-i="${i}">${r.name}</button>`).join('');
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setRx(+b.dataset.i));
+document.getElementById('play').onclick=()=>{if(p>=1)p=0;play=true;document.getElementById('play').textContent='⏸ 진행 중'};
+document.getElementById('rs').onclick=()=>{p=0;play=false;document.getElementById('play').textContent='▶ 반응 시작'};
+sl.oninput=()=>{play=false;p=sl.value/1000};
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000);last=t;
+ if(play){p=reduce?1:Math.min(1,p+dt/4);if(p>=1){play=false;document.getElementById('play').textContent='↻ 다시 보기'}}draw();}
+setRx(0);requestAnimationFrame(loop);
+</script></body></html>
