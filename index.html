@@ -15,10 +15,10 @@ header{padding:14px 18px 6px}
 h1{font-size:1.25rem;font-weight:900;margin:0}
 header p{margin:2px 0 0;color:var(--sub);font-size:.85rem}
 main{display:flex;flex:1;gap:12px;padding:0 12px 12px;flex-wrap:wrap}
-#stage{flex:2 1 460px;min-height:360px;height:62vh;border-radius:10px;background:var(--panel);border:1px solid var(--line);position:relative;touch-action:none;overflow:hidden}
+#stage{flex:2 1 420px;min-height:360px;height:62vh;border-radius:10px;background:var(--panel);border:1px solid var(--line);position:relative;touch-action:none;overflow:hidden}
 canvas{display:block;width:100%;height:100%}
 #hint{position:absolute;left:10px;bottom:8px;font-size:.75rem;color:var(--sub)}
-#info{flex:1 1 300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:62vh;overflow:auto}
+#info{flex:1 1 380px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:62vh;overflow:auto}
 #sym{font-size:3.4rem;font-weight:900;line-height:1;color:var(--acc)}
 #info h2{margin:6px 0 0;font-size:1.1rem}
 .meta{color:var(--sub);font-size:.85rem;margin:2px 0 10px}
@@ -29,6 +29,12 @@ button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:8px 14px;
 button:disabled{opacity:.35;cursor:default}
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .warn{color:var(--sub);font-size:.78rem}
+.sim{margin-top:6px}.sim canvas{width:100%;display:block;background:var(--bg);border-radius:8px}
+.sim .eq{font-weight:900;font-size:1.05rem;text-align:center;margin:8px 0 2px}.sim .nt{color:var(--sub);font-size:.8rem;text-align:center;margin:0 0 8px}
+.sim .c{display:flex;gap:8px;align-items:center}.sim input[type=range]{flex:1;accent-color:var(--acc)}
+.sim .tb{display:flex;gap:6px;margin:6px 0;flex-wrap:wrap}.sim button{margin:0;padding:6px 10px;font-size:.82rem}
+.sim button.off{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.sim .bl{font-size:.8rem;font-weight:700;color:var(--sub);margin:6px 0 0}.sim .bl.ok{color:var(--acc)}
 </style></head><body>
 <header><h1>3D 주기율표 · 실험 시뮬레이터</h1><p>실험에 쓰인 원소 17종. 블록을 눌러 관련 실험과 반응식을 확인하세요. <a href="reaction.html" style="color:var(--acc);font-weight:700">반응식 애니메이션 →</a></p></header>
 <main>
@@ -104,15 +110,86 @@ function showInfo(e){
  <p class="meta">원자번호 ${e[0]} · 원자량 ${e[4]} · ${e[6]}주기 ${e[7]}족<br>전자배치 ${e[5]}</p>
  <h3>관련 실험</h3><ul>${e[10].map(x=>`<li>${x}</li>`).join('')}</ul>
  <h3>관련 화합물</h3><ul>${cs}</ul>
- <h3>관련 반응식</h3><div class="rx">${e[11]}</div>
- <button id="fb" ${e[9]?'':'disabled'}>${e[9]?'불꽃 반응 보기 ('+e[9][1]+')':'불꽃 반응 실험 없음'}</button>
- <p class="warn">Zn(아연)은 사용 기록이 없어 제외했습니다.</p>`;
- const fb=$('fb');if(e[9])fb.onclick=()=>{burn=!burn;
-  sel.userData.front.emissive.set(burn?e[9][0]:0x000000);sel.userData.front.emissiveIntensity=.55;};}
+ ${simHTML(e)}`;
+ mountSim(e);}
 showInfo=showInfo;
-$('info').innerHTML='<h2>블록을 선택하세요</h2><p class="meta">원소를 누르면 원자량, 전자배치, 관련 실험과 반응식이 표시됩니다.<br>색 점이 있는 블록은 불꽃 반응을 볼 수 있습니다.</p>';
+$('info').innerHTML='<h2>블록을 선택하세요</h2><p class="meta">원소를 누르면 원자량, 전자배치, 관련 실험과 반응식이 표시됩니다.<br>H, C, O, Mg, Na, S, Cu, I, K, Ca, Cl은 반응식 시뮬레이션이 표시됩니다.</p>';
+
+// ===== 반응식 시뮬레이션 (패널 안) =====
+const RX=[
+{name:'물의 전기분해',eq:'2H₂O → 2H₂ + O₂',note:'물 2분자가 쪼개져 수소 기체 2분자와 산소 기체 1분자가 됩니다.',
+ atoms:[['O',110,130,600,150],['H',80,165,452,95],['H',140,165,452,205],['O',250,130,638,150],['H',220,165,488,95],['H',280,165,488,205]],
+ rb:[[0,1],[0,2],[3,4],[3,5]],pb:[[1,4],[2,5],[0,3,'d']],
+ rl:[[110,205,'H₂O'],[250,205,'H₂O']],pl:[[470,150,'H₂'],[470,245,'H₂'],[619,190,'O₂']]},
+{name:'탄산칼슘 침전',eq:'K₂CO₃ + CaCl₂ → CaCO₃↓ + 2KCl',note:'이온이 짝을 바꿔 물에 녹지 않는 CaCO₃가 흰색 앙금으로 생깁니다.',
+ atoms:[['C',110,140,470,105],['O',110,102,470,67],['O',78,160,438,125],['O',142,160,502,125],['K',45,200,590,95],['K',175,200,590,205],
+        ['Ca',285,135,470,165],['Cl',250,185,630,95],['Cl',320,185,630,205]],
+ rb:[[0,1],[0,2],[0,3],[4,2,'i'],[5,3,'i'],[6,7,'i'],[6,8,'i']],pb:[[0,1],[0,2],[0,3],[6,2,'i'],[6,3,'i'],[4,7,'i'],[5,8,'i']],
+ rl:[[110,250,'K₂CO₃'],[285,250,'CaCl₂']],pl:[[470,225,'CaCO₃ ↓ 흰색 앙금'],[610,125,'KCl'],[610,235,'KCl']]},
+{name:'마그네슘-공기 전지',eq:'2Mg + O₂ + 2H₂O → 2Mg(OH)₂',note:'마그네슘이 전자를 내놓고(산화), 산소가 전자를 받아 OH⁻가 되어(환원) Mg(OH)₂가 생깁니다.',
+ atoms:[['Mg',45,110,525,100],['Mg',45,200,525,200],['O',120,150,572,100],['O',158,150,572,200],['O',240,100,478,100],['H',212,128,440,100],['H',268,128,600,100],['O',240,210,478,200],['H',212,238,440,200],['H',268,238,600,200]],
+ rb:[[2,3,'d'],[4,5],[4,6],[7,8],[7,9]],pb:[[0,4,'i'],[0,2,'i'],[4,5],[2,6],[1,7,'i'],[1,3,'i'],[7,8],[3,9]],
+ rl:[[45,268,'2Mg'],[139,118,'O₂'],[240,276,'2H₂O']],pl:[[525,150,'Mg(OH)₂'],[525,252,'Mg(OH)₂ ↓']]},
+{name:'화산 실험',eq:'C₄H₆O₅ + 2NaHCO₃ → Na₂C₄H₄O₅ + 2CO₂↑ + 2H₂O',note:'사과산의 H가 탄산수소 이온으로 옮겨가 물과 CO₂ 거품이 생깁니다. R은 사과산의 나머지 부분(C₂H₄O)을 한 덩어리로 단순화한 것입니다.',
+ atoms:[['R',120,60,440,60],['C',60,60,380,60],['C',180,60,500,60],['O',60,22,380,22],['O',35,92,355,92],['O',180,22,500,22],['O',205,92,525,92],['H',20,125,425,210],['H',225,125,425,270],
+  ['Na',30,205,330,130],['C',90,205,560,190],['O',90,168,520,190],['O',125,225,600,190],['O',60,238,395,185],['H',30,262,370,210],
+  ['Na',180,205,560,130],['C',240,205,560,250],['O',240,168,520,250],['O',275,225,600,250],['O',210,238,395,245],['H',180,262,370,270]],
+ rb:[[0,1],[0,2],[1,3,'d'],[1,4],[4,7],[2,5,'d'],[2,6],[6,8],[10,11,'d'],[10,12],[10,13],[13,14],[9,12,'i'],[16,17,'d'],[16,18],[16,19],[19,20],[15,18,'i']],
+ pb:[[0,1],[0,2],[1,3,'d'],[1,4],[2,5,'d'],[2,6],[9,4,'i'],[15,6,'i'],[11,10,'d'],[10,12,'d'],[17,16,'d'],[16,18,'d'],[13,14],[13,7],[19,20],[19,8]],
+ rl:[[120,125,'사과산'],[150,286,'2NaHCO₃']],pl:[[440,152,'Na₂ 사과산염'],[660,197,'CO₂↑'],[660,257,'CO₂↑'],[470,205,'H₂O'],[470,265,'H₂O']]},
+{name:'비타민 C와 아이오딘',eq:'C₆H₈O₆ + I₂ → C₆H₆O₆ + 2H⁺ + 2I⁻',note:'비타민 C가 H를 내놓고 산화되고, 아이오딘은 I⁻로 환원됩니다. 파란 배경이 사라지는 것은 청남색(아이오딘-전분)이 없어지는 장면입니다.',
+ tint:'#2b3a9a',
+ atoms:[['AA',120,120,470,105],['H',70,85,580,65],['H',170,85,580,115],['I',250,130,580,175],['I',305,130,580,235]],
+ rb:[[0,1],[0,2],[3,4]],pb:[],
+ rl:[[120,190,'비타민 C'],[278,190,'I₂']],pl:[[450,190,'산화된 비타민 C'],[640,70,'H⁺'],[640,120,'H⁺'],[640,180,'I⁻'],[640,240,'I⁻']]},
+{name:'황산구리 전기분해 (흑연)',eq:'2CuSO₄ + 2H₂O → 2Cu + O₂ + 2H₂SO₄',note:'음극에서 Cu²⁺가 Cu로 석출되고, 양극에서 물이 분해되어 O₂가 나옵니다. 용액은 황산이 되어 산성이 됩니다.',
+ atoms:[['Cu',30,55,400,50],['S',110,55,560,60],['O',75,22,525,25],['O',145,22,595,25],['O',75,88,525,95],['O',145,88,595,95],
+  ['Cu',30,150,400,110],['S',110,150,560,175],['O',75,117,525,140],['O',145,117,595,140],['O',75,183,525,210],['O',145,183,595,210],
+  ['O',60,240,400,225],['H',35,265,495,120],['H',85,265,625,120],['O',175,240,440,225],['H',150,265,495,235],['H',200,265,625,235]],
+ rb:[[1,2],[1,3],[1,4],[1,5],[0,4,'i'],[7,8],[7,9],[7,10],[7,11],[6,10,'i'],[12,13],[12,14],[15,16],[15,17]],
+ pb:[[1,2],[1,3],[1,4],[1,5],[7,8],[7,9],[7,10],[7,11],[4,13],[5,14],[10,16],[11,17],[12,15,'d']],
+ rl:[[270,55,'CuSO₄'],[270,150,'CuSO₄'],[290,258,'2H₂O']],pl:[[460,62,'Cu'],[460,122,'Cu'],[420,272,'O₂'],[665,62,'H₂SO₄'],[665,177,'H₂SO₄']]},
+{name:'황산구리 전기분해 (구리 전극)',eq:'Cu(양극) → Cu²⁺ + 2e⁻ → Cu(음극)',note:'전극이 구리면 양극의 구리가 녹아 이온이 되고, 같은 양이 음극에 쌓입니다. 흑연 전극과 반응이 다릅니다.',
+ atoms:[['Cu',60,50,630,50],['Cu',60,115,630,115],['Cu',60,180,630,180],['Cu',60,245,630,245]],
+ rb:[],pb:[],rl:[[60,284,'양극(+)']],pl:[[630,284,'음극(−)']]}];
+const SIMOF={H:[0,2,3,4,5],O:[0,1,2,3,4,5],C:[1,3,4],K:[1],Ca:[1],Cl:[1],Mg:[2],Na:[3],I:[4],Cu:[5,6],S:[5]};
+const SC={H:['#e8eef2',14],O:['#e0574f',20],C:['#4d5964',19],K:['#b06cff',19],Ca:['#ebc765',22],Cl:['#5fbf7a',20],Mg:['#6fae7a',19],Na:['#f0c040',19],S:['#e6d44a',19],Cu:['#d98a4a',19],I:['#8a4fb0',22],R:['#9aa6b0',24],AA:['#6aa0c8',40]};const NM={AA:'C₆H₆O₆'};
+let simL=[],simC=0,simP=0,simPlay=false,simLast=0;
+const clp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),eas=t=>t*t*(3-2*t);
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function simHTML(e){const l=SIMOF[e[1]];
+ if(!l){return e[11].startsWith('금속 원자')?'':`<h3>관련 반응식</h3><div class="rx">${e[11]}</div>`;}
+ return `<h3>반응식 시뮬레이션</h3><div class="sim"><div class="tb" id="stb"></div><canvas id="simcv" width="720" height="290"></canvas>
+ <div class="eq" id="seq"></div><p class="nt" id="snt"></p>
+ <div class="c"><button id="splay">▶ 반응 시작</button><input type="range" id="ssl" min="0" max="1000" value="0" aria-label="반응 진행도"><button class="off" id="srs">↺</button></div>
+ <p class="bl" id="sbl"></p></div>`;}
+function mountSim(e){const l=SIMOF[e[1]];simL=l||[];if(!l)return;
+ $('stb').innerHTML=l.length>1?l.map(i=>`<button class="off" data-i="${i}">${RX[i].name}</button>`).join(''):'';
+ document.querySelectorAll('#stb button').forEach(b=>b.onclick=()=>simSet(+b.dataset.i));
+ $('splay').onclick=()=>{if(simP>=1)simP=0;simPlay=true;$('splay').textContent='⏸ 진행 중'};
+ $('srs').onclick=()=>{simP=0;simPlay=false;$('splay').textContent='▶ 반응 시작'};
+ $('ssl').oninput=()=>{simPlay=false;simP=$('ssl').value/1000};simSet(l[0]);}
+function simSet(i){simC=i;simP=0;simPlay=false;const r=RX[i];
+ document.querySelectorAll('#stb button').forEach(b=>b.classList.toggle('off',+b.dataset.i!==i));
+ $('seq').textContent=r.eq;$('snt').textContent=r.note;$('splay').textContent='▶ 반응 시작';}
+function sBonds(list,al,P,x){if(al<=0)return;x.globalAlpha=al;x.strokeStyle=cssv('--sub');
+ list.forEach(([i,j,t])=>{x.setLineDash(t==='i'?[5,5]:[]);x.lineWidth=t==='d'?8:5;x.beginPath();x.moveTo(...P[i]);x.lineTo(...P[j]);x.stroke();
+  if(t==='d'){x.strokeStyle=cssv('--bg');x.lineWidth=3;x.setLineDash([]);x.beginPath();x.moveTo(...P[i]);x.lineTo(...P[j]);x.stroke();x.strokeStyle=cssv('--sub')}});
+ x.setLineDash([]);x.globalAlpha=1}
+function sLabels(L,al,x){x.globalAlpha=al;x.fillStyle=cssv('--ink');x.font='700 24px "Gothic A1",sans-serif';x.textAlign='center';L.forEach(l=>x.fillText(l[2],l[0],l[1]));x.globalAlpha=1}
+function simDraw(){const cv=$('simcv');if(!cv)return;const x=cv.getContext('2d'),r=RX[simC];
+ const k=eas(clp((simP-.25)/.5)),P=r.atoms.map(a=>[a[1]+(a[3]-a[1])*k,a[2]+(a[4]-a[2])*k]);
+ x.clearRect(0,0,720,290);if(r.tint){x.globalAlpha=.3*(1-clp(simP/.8));x.fillStyle=r.tint;x.fillRect(0,0,720,290);x.globalAlpha=1}x.strokeStyle=cssv('--line');x.lineWidth=3;x.beginPath();x.moveTo(336,150);x.lineTo(384,150);x.lineTo(372,140);x.moveTo(384,150);x.lineTo(372,160);x.stroke();
+ const ra=1-clp((simP-.1)/.2),pa=clp((simP-.7)/.2);
+ sBonds(r.rb,ra,P,x);sBonds(r.pb,pa,P,x);sLabels(r.rl,ra,x);sLabels(r.pl,pa,x);
+ r.atoms.forEach((a,i)=>{const[c,rad]=SC[a[0]];x.fillStyle=c;x.beginPath();x.arc(P[i][0],P[i][1],rad,0,7);x.fill();x.strokeStyle=cssv('--sub');x.lineWidth=1.5;x.stroke();
+  x.fillStyle=a[0]==='H'?'#16222c':'#fff';x.font='700 '+(rad>30?14:rad>16?18:15)+'px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(NM[a[0]]||a[0],P[i][0],P[i][1]+1);x.textBaseline='alphabetic'});
+ $('ssl').value=Math.round(simP*1000);const b=$('sbl');b.className='bl'+(simP>=1?' ok':'');
+ b.textContent=simP>=1?'✓ 반응 전후 모든 원소의 원자 수가 같습니다 (질량 보존)':'슬라이더를 끝까지 움직이면 반응이 완료됩니다';}
+function simTick(t){const dt=Math.min(.05,(t-simLast)/1000);simLast=t;
+ if(simPlay){simP=matchMedia('(prefers-reduced-motion:reduce)').matches?1:Math.min(1,simP+dt/4);if(simP>=1){simPlay=false;$('splay').textContent='↻ 다시 보기'}}simDraw();}
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-function loop(t){requestAnimationFrame(loop);
+function loop(t){requestAnimationFrame(loop);simTick(t);
  G.rotation.set(rx,ry,0);cam.position.z=cam.userData.d*zoom;cam.lookAt(0,0,0);
  blocks.forEach(b=>{const tz=b===sel?.7:0;b.position.z+=(tz-b.position.z)*.15;});
  flame.visible=burn&&!!sel;
